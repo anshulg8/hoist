@@ -38,8 +38,7 @@ if [ "$CONFIG" = "release" ]; then
   strip -rSTx "$MACOS_DIR/$APP_NAME" 2>/dev/null || true
 fi
 
-# App icon. Built ahead of time via `iconutil` from
-# /Users/anshul/Downloads/hoist-icons/png/app-geometric-light/. Lives in
+# App icon. Built ahead of time via `iconutil`. Lives in
 # Resources/ so the build is reproducible without network access.
 ICNS="$ROOT/Resources/Hoist.icns"
 if [ -f "$ICNS" ]; then
