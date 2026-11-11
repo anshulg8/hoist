@@ -59,6 +59,23 @@ git push origin v0.1.1
 
 ---
 
+## 📝 Release Description Template
+
+```markdown
+### What's New in Hoist <VERSION>
+
+- <Feature or fix description>
+
+#### Installation & First Launch:
+1. Download **`Hoist.zip`** below and extract it.
+2. Drag **`Hoist.app`** to `/Applications`.
+3. **Gatekeeper Notice**: Because Hoist is free, open-source software and not signed with an Apple Developer account, macOS will show a standard unidentified developer prompt on first launch:
+   - **Terminal (Fastest)**: Run `xattr -cr /Applications/Hoist.app`
+   - **Or System Settings**: Click *Done* on the warning, open *System Settings* → *Privacy & Security* → scroll down and click *Open Anyway*.
+```
+
+---
+
 ## ⚠️ Important: Attaching `Hoist.zip`
 Hoist's built-in auto-updater queries the GitHub Releases API for the latest release, finds the asset ending with `.zip`, and downloads it directly to update `/Applications/Hoist.app` or your current bundle. If `Hoist.zip` is not attached to the release, the in-app one-click updater will not work.
 
