@@ -34,7 +34,13 @@ public final class UpdateChecker: ObservableObject {
         Task {
             defer { self.isChecking = false }
             do {
-                let release = try await fetchLatestRelease()
+                guard let release = try await fetchLatestRelease() else {
+                    self.availableUpdateVersion = nil
+                    if explicit {
+                        showUpToDateAlert(version: cleanVersion(self.currentVersion))
+                    }
+                    return
+                }
                 let remoteVersion = cleanVersion(release.tagName)
                 let localVersion = cleanVersion(self.currentVersion)
 
@@ -92,7 +98,7 @@ public final class UpdateChecker: ObservableObject {
         }
     }
 
-    private func fetchLatestRelease() async throws -> GitHubRelease {
+    private func fetchLatestRelease() async throws -> GitHubRelease? {
         guard let url = URL(string: "https://api.github.com/repos/\(repoOwner)/\(repoName)/releases/latest") else {
             throw URLError(.badURL)
         }
@@ -108,6 +114,11 @@ public final class UpdateChecker: ObservableObject {
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
+        }
+
+        // 404 indicates no releases have been published on GitHub yet
+        if httpResponse.statusCode == 404 {
+            return nil
         }
 
         guard httpResponse.statusCode == 200 else {
