@@ -48,9 +48,12 @@ final class PreferencesWindowController: NSWindowController {
 
 extension PreferencesWindowController: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
-        // Drop back to menu-bar-only when the prefs window closes so we
-        // don't keep a Dock icon around.
-        NSApp.setActivationPolicy(.accessory)
+        // Drop back to menu-bar-only when all windows close
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.windowClosed(notification.object as? NSWindow)
+        } else {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 }
 
@@ -218,6 +221,19 @@ private struct PreferencesView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.accentColor)
                 .disabled(updateChecker.isChecking)
+
+                Text("•")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+
+                Button(action: {
+                    (NSApp.delegate as? AppDelegate)?.openAboutWindow()
+                }) {
+                    Text("About")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
 
                 Spacer()
 

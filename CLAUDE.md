@@ -21,11 +21,12 @@ There is no test target. Do not invent test commands.
 
 ## Architecture
 
-Five source files in `Sources/Hoist/`. Single-process menu-bar app with no third-party dependencies.
+Six source files in `Sources/Hoist/`. Single-process menu-bar app with no third-party dependencies.
 
-- **App.swift** — `HoistApp.main` boots `NSApplication` with `.accessory` activation policy (no Dock, no ⌘-Tab). `AppDelegate` owns the `NSStatusItem`, builds the dropdown menu on demand via `NSMenuDelegate.menuNeedsUpdate`, runs a minute-aligned `Timer` that re-renders the title when the clock is enabled, and handles ⌘Q quit confirmation and update triggers.
+- **App.swift** — `HoistApp.main` boots `NSApplication` with `.accessory` activation policy (no Dock, no ⌘-Tab). `AppDelegate` owns the `NSStatusItem`, builds the dropdown menu on demand via `NSMenuDelegate.menuNeedsUpdate`, runs a minute-aligned `Timer` that re-renders the title when the clock is enabled, and handles ⌘Q quit confirmation, windows management, and update triggers.
 - **Settings.swift** — `SettingsStore` (singleton, `@MainActor`) is the single source of truth, backed by `UserDefaults`. It is *both* an `ObservableObject` (for SwiftUI bindings in PreferencesView) *and* posts `SettingsStore.didChange` from each `didSet` (for AppKit observers in AppDelegate). Both are intentional — see the comment in Settings.swift; `objectWillChange` fires before assignment, which is wrong for the AppKit refresh path.
 - **PreferencesWindow.swift** — `PreferencesWindowController` hosts a SwiftUI `PreferencesView` in an `NSWindow`. To take key focus the controller temporarily flips activation policy to `.regular`, then drops back to `.accessory` in `windowWillClose`. Launch-at-login uses `SMAppService.mainApp` via the `LoginItem` wrapper. Hosts in-window quit confirmation and update status/checks.
+- **AboutView.swift** — Dedicated SwiftUI About window for Hoist, displaying app icon, version, update checks, and author attribution with links.
 - **UpdateChecker.swift** — Zero-dependency update checker and in-app installer using GitHub's public Releases API (`anshulg8/hoist`). Handles background checking, modal prompts, downloading, extracting via `ditto`, ad-hoc signing, and seamless hot relaunch.
 - **Countries.swift** — Hand-curated table (~110 entries) of `Country { code, name, timeZone }`. Flag emoji is derived from the ISO alpha-2 code via regional-indicator scalars (`emojiFlag(for:)`); for multi-zone countries the table picks the *capital city's* IANA zone.
 

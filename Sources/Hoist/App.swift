@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 @main
 struct HoistApp {
@@ -16,11 +17,12 @@ struct HoistApp {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let settings = SettingsStore.shared
 
     private var statusItem: NSStatusItem?
     private var preferencesController: PreferencesWindowController?
+    private var aboutWindow: NSWindow?
     private var localKeyMonitor: Any?
 
     /// Minute-aligned timer that re-renders the status title so the
@@ -79,11 +81,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let appItem = NSMenuItem()
         let appMenu = NSMenu(title: "Hoist")
-        appMenu.addItem(NSMenuItem(
+        let aboutItem = NSMenuItem(
             title: "About Hoist",
-            action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            action: #selector(openAboutWindow),
             keyEquivalent: ""
-        ))
+        )
+        aboutItem.target = self
+        appMenu.addItem(aboutItem)
         let updateItem = NSMenuItem(
             title: "Check for Updates…",
             action: #selector(checkForUpdates),
@@ -210,13 +214,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UpdateChecker.shared.checkForUpdates(explicit: true)
     }
 
+    @objc func openAboutWindow() {
+        if aboutWindow == nil {
+            let win = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 340, height: 330),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            win.center()
+            win.title = "About Hoist"
+            win.isReleasedWhenClosed = false
+            win.delegate = self
+            let hosting = NSHostingView(rootView: AboutView(onClose: { [weak win] in win?.close() }))
+            win.contentView = hosting
+            aboutWindow = win
+        }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        aboutWindow?.center()
+        aboutWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    func windowClosed(_ closedWindow: NSWindow?) {
+        let isPreferencesVisible = (closedWindow !== preferencesController?.window) && (preferencesController?.isWindowVisible == true)
+        let isAboutVisible = (closedWindow !== aboutWindow) && (aboutWindow?.isVisible == true)
+        if !isPreferencesVisible && !isAboutVisible {
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        windowClosed(notification.object as? NSWindow)
+    }
+
     @objc func quitApp() {
         requestQuitConfirmation()
     }
 
     @objc func requestQuitConfirmation() {
-        let isPreferencesVisible = preferencesController?.isWindowVisible == true
-        if isPreferencesVisible {
+        let isAnyViewVisible = (preferencesController?.isWindowVisible == true) || (aboutWindow?.isVisible == true)
+        if isAnyViewVisible {
             NotificationCenter.default.post(name: Notification.Name("HoistRequestQuitConfirmation"), object: nil)
         } else {
             let alert = NSAlert()
@@ -248,16 +286,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return nil
             }
 
-            // ⌘W: Close preferences window if active
+            // ⌘W: Close active window
             if isCmd && char == "w" {
+                if let win = self.aboutWindow, win.isVisible {
+                    win.close()
+                    return nil
+                }
                 if let controller = self.preferencesController, controller.isWindowVisible {
                     controller.window?.close()
                     return nil
                 }
             }
 
-            // Escape: Close preferences window if active
+            // Escape: Close active window
             if event.keyCode == 53 {
+                if let win = self.aboutWindow, win.isVisible {
+                    win.close()
+                    return nil
+                }
                 if let controller = self.preferencesController, controller.isWindowVisible {
                     controller.window?.close()
                     return nil
@@ -303,6 +349,14 @@ extension AppDelegate: NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        let prefs = NSMenuItem(
+            title: "Preferences…",
+            action: #selector(openPreferences),
+            keyEquivalent: ","
+        )
+        prefs.target = self
+        menu.addItem(prefs)
+
         let updateItem = NSMenuItem(
             title: "Check for Updates…",
             action: #selector(checkForUpdates),
@@ -311,13 +365,13 @@ extension AppDelegate: NSMenuDelegate {
         updateItem.target = self
         menu.addItem(updateItem)
 
-        let prefs = NSMenuItem(
-            title: "Preferences…",
-            action: #selector(openPreferences),
-            keyEquivalent: ","
+        let aboutItem = NSMenuItem(
+            title: "About Hoist…",
+            action: #selector(openAboutWindow),
+            keyEquivalent: ""
         )
-        prefs.target = self
-        menu.addItem(prefs)
+        aboutItem.target = self
+        menu.addItem(aboutItem)
 
         menu.addItem(.separator())
 
