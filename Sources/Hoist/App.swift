@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem?
     private var preferencesController: PreferencesWindowController?
+    private var localKeyMonitor: Any?
 
     /// Minute-aligned timer that re-renders the status title so the
     /// optional clock advances without drift. Nil while time is hidden.
@@ -32,6 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installMainMenu()
         installStatusItem()
         configureMinuteTimer()
+        installLocalKeyMonitor()
+
+        // Background update check shortly after launch
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            UpdateChecker.shared.checkForUpdates(explicit: false)
+        }
 
         // Refresh the menu-bar title whenever any setting changes.
         // SettingsStore posts this notification *after* the new value is
@@ -46,6 +53,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.refreshStatusButton()
                 self?.configureMinuteTimer()
             }
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        if let m = localKeyMonitor {
+            NSEvent.removeMonitor(m)
+            localKeyMonitor = nil
         }
     }
 
@@ -70,18 +84,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
             keyEquivalent: ""
         ))
+        let updateItem = NSMenuItem(
+            title: "Check for Updates…",
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+        appMenu.addItem(updateItem)
         appMenu.addItem(.separator())
-        appMenu.addItem(NSMenuItem(
+        let prefsItem = NSMenuItem(
             title: "Preferences…",
             action: #selector(openPreferences),
             keyEquivalent: ","
-        ))
+        )
+        prefsItem.target = self
+        appMenu.addItem(prefsItem)
         appMenu.addItem(.separator())
-        appMenu.addItem(NSMenuItem(
+        let quitItem = NSMenuItem(
             title: "Quit Hoist",
-            action: #selector(NSApplication.terminate(_:)),
+            action: #selector(requestQuitConfirmation),
             keyEquivalent: "q"
-        ))
+        )
+        quitItem.target = self
+        appMenu.addItem(quitItem)
         appItem.submenu = appMenu
         mainMenu.addItem(appItem)
 
@@ -180,6 +205,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func customTextChanged(_ sender: NSTextField) {
         settings.customText = sender.stringValue
     }
+
+    @objc func checkForUpdates() {
+        UpdateChecker.shared.checkForUpdates(explicit: true)
+    }
+
+    @objc func quitApp() {
+        requestQuitConfirmation()
+    }
+
+    @objc func requestQuitConfirmation() {
+        let isPreferencesVisible = preferencesController?.isWindowVisible == true
+        if isPreferencesVisible {
+            NotificationCenter.default.post(name: Notification.Name("HoistRequestQuitConfirmation"), object: nil)
+        } else {
+            let alert = NSAlert()
+            alert.messageText = "Quit Hoist?"
+            alert.informativeText = "The menu-bar flag will be removed until you relaunch Hoist."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Quit Hoist")
+            alert.addButton(withTitle: "Cancel")
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSApp.terminate(nil)
+            }
+        }
+    }
+
+    // MARK: - Key event monitor
+
+    private func installLocalKeyMonitor() {
+        guard localKeyMonitor == nil else { return }
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+
+            let isCmd = event.modifierFlags.contains(.command)
+            let char = event.charactersIgnoringModifiers?.lowercased()
+
+            // ⌘Q: Request quit with confirmation dialog
+            if isCmd && char == "q" {
+                self.requestQuitConfirmation()
+                return nil
+            }
+
+            // ⌘W: Close preferences window if active
+            if isCmd && char == "w" {
+                if let controller = self.preferencesController, controller.isWindowVisible {
+                    controller.window?.close()
+                    return nil
+                }
+            }
+
+            // Escape: Close preferences window if active
+            if event.keyCode == 53 {
+                if let controller = self.preferencesController, controller.isWindowVisible {
+                    controller.window?.close()
+                    return nil
+                }
+            }
+
+            return event
+        }
+    }
 }
 
 // MARK: - Status menu construction
@@ -216,6 +303,14 @@ extension AppDelegate: NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        let updateItem = NSMenuItem(
+            title: "Check for Updates…",
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+        menu.addItem(updateItem)
+
         let prefs = NSMenuItem(
             title: "Preferences…",
             action: #selector(openPreferences),
@@ -226,11 +321,13 @@ extension AppDelegate: NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem(
+        let quitItem = NSMenuItem(
             title: "Quit Hoist",
-            action: #selector(NSApplication.terminate(_:)),
+            action: #selector(requestQuitConfirmation),
             keyEquivalent: "q"
-        ))
+        )
+        quitItem.target = self
+        menu.addItem(quitItem)
     }
 
     /// Country submenu, structured as:

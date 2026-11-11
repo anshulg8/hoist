@@ -3,5 +3,6 @@
 *.xcodeproj/
 .DS_Store
 Hoist.app/
+*.zip
 Package.resolved
 .claude/

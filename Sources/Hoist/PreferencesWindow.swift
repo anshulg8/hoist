@@ -40,6 +40,10 @@ final class PreferencesWindowController: NSWindowController {
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
     }
+
+    var isWindowVisible: Bool {
+        window?.isVisible == true
+    }
 }
 
 extension PreferencesWindowController: NSWindowDelegate {
@@ -88,8 +92,10 @@ private final class LoginItem: ObservableObject {
 /// the menu bar instantly.
 private struct PreferencesView: View {
     @ObservedObject var settings: SettingsStore
+    @ObservedObject private var updateChecker = UpdateChecker.shared
     @StateObject private var loginItem = LoginItem()
     @State private var searchText: String = ""
+    @State private var showQuitConfirmation: Bool = false
 
     private var filteredCountries: [Country] {
         let needle = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -180,9 +186,70 @@ private struct PreferencesView: View {
                 .frame(minHeight: 280)
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+
+            Divider()
+
+            // --- Footer: Version, Check for Updates, Quit ---
+            HStack(spacing: 8) {
+                Text("Hoist \(updateChecker.currentVersion)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("•")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+
+                Button(action: {
+                    updateChecker.checkForUpdates(explicit: true)
+                }) {
+                    HStack(spacing: 4) {
+                        if updateChecker.isChecking {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                                .frame(width: 12, height: 12)
+                        } else {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11))
+                        }
+                        Text("Check for Updates…")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .disabled(updateChecker.isChecking)
+
+                Spacer()
+
+                Button(action: {
+                    showQuitConfirmation = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "power")
+                            .font(.system(size: 11))
+                        Text("Quit Hoist")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Quit Hoist (⌘Q)")
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
         }
-        .frame(minWidth: 480, minHeight: 560)
+        .frame(minWidth: 480, minHeight: 600)
+        .alert("Quit Hoist?", isPresented: $showQuitConfirmation) {
+            Button("Quit Hoist", role: .destructive) {
+                NSApp.terminate(nil)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The menu-bar flag will be removed until you relaunch Hoist.")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("HoistRequestQuitConfirmation"))) { _ in
+            showQuitConfirmation = true
+        }
     }
 }
 

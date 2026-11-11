@@ -33,6 +33,11 @@ rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RES_DIR"
 cp "$BIN" "$MACOS_DIR/$APP_NAME"
 
+if [ "$CONFIG" = "release" ]; then
+  echo "==> Stripping symbols for release..."
+  strip -rSTx "$MACOS_DIR/$APP_NAME" 2>/dev/null || true
+fi
+
 # App icon. Built ahead of time via `iconutil` from
 # /Users/anshul/Downloads/hoist-icons/png/app-geometric-light/. Lives in
 # Resources/ so the build is reproducible without network access.
@@ -79,6 +84,13 @@ plutil -lint "$CONTENTS/Info.plist" > /dev/null
 echo "==> Ad-hoc signing"
 codesign --force --deep --sign - --entitlements /dev/null "$APP_DIR" 2>/dev/null \
   || codesign --force --deep --sign - "$APP_DIR"
+
+if [ "$CONFIG" = "release" ]; then
+  echo "==> Creating distributable $ROOT/$APP_NAME.zip..."
+  rm -f "$ROOT/$APP_NAME.zip"
+  ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$ROOT/$APP_NAME.zip"
+  echo "==> Distributable package ready at: $ROOT/$APP_NAME.zip"
+fi
 
 echo ""
 echo "Built: $APP_DIR"
